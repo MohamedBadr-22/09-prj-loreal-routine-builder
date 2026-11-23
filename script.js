@@ -115,11 +115,27 @@ function updateControls() {
   byId("send").disabled = chatInput.disabled = busy || !history.length;
 }
 
-function addMessage(role, text, sources = []) {
+// Render model text safely and attach clickable citations at their positions.
+function addMessage(role, text, sources = [], citations = []) {
   const article = element("article");
-  const message = element("p", text);
+  const message = element("p");
   message.className = "message";
   message.dir = "auto";
+  const characters = Array.from(text);
+  let position = 0;
+  const ordered = citations.filter(({ url, end }) =>
+    /^https:\/\//i.test(url) && Number.isInteger(end) && end > 0 && end <= characters.length
+  ).sort((first, second) => first.end - second.end);
+  for (const { url, title, end } of ordered) {
+    message.append(characters.slice(position, end).join(""));
+    const citation = element("a", ` [${title}]`);
+    citation.href = url;
+    citation.target = "_blank";
+    citation.rel = "noopener noreferrer";
+    message.append(citation);
+    position = end;
+  }
+  message.append(characters.slice(position).join(""));
   article.append(element("strong", role), message);
   if (sources.length) {
     const links = element("ul");
@@ -162,7 +178,7 @@ async function requestRoutine(message, selection, generate) {
     routineProducts = selection;
     if (generate) chatWindow.replaceChildren();
     addMessage("You", message);
-    addMessage("Routine advisor", data.reply, data.sources);
+    addMessage("Routine advisor", data.reply, data.sources, data.citations);
     if (!generate) chatInput.value = "";
     status.textContent = data.searchRequested && !data.sources?.length ? "No web sources were returned." : "";
   } catch (error) {
