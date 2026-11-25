@@ -3,7 +3,10 @@ const categoryFilter = byId("categoryFilter");
 const productsContainer = byId("productsContainer");
 const chatWindow = byId("chatWindow");
 const chatInput = byId("chatInput");
-const endpoint = document.querySelector('meta[name="routine-endpoint"]').content;
+// GitHub Pages serves static files. AI Studio uses its Express proxy.
+const endpoint = window.location.hostname === "mohamedbadr-22.github.io"
+  ? "https://loreal-beauty-advisor.mo10saidmm.workers.dev/project9"
+  : document.querySelector('meta[name="routine-endpoint"]')?.content;
 const selectionKey = "loreal.selectedProducts";
 let products = [];
 let selected = new Set();
@@ -172,8 +175,13 @@ async function requestRoutine(message, selection, generate) {
       }),
       signal: AbortSignal.timeout(45000)
     });
-    const data = await response.json();
-    if (!response.ok || !data.reply) throw new Error(data.error || "The advisor could not respond. Try again.");
+    const contentType = response.headers.get("content-type") || "";
+    const invalidResponse = "The routine advisor returned an unexpected response. Try again shortly.";
+    if (!/^application\/json(?:\s*;|$)/i.test(contentType)) throw new Error(invalidResponse);
+    const data = await response.json().catch(() => { throw new Error(invalidResponse); });
+    if (!response.ok || typeof data?.reply !== "string" || !data.reply.trim()) {
+      throw new Error(typeof data?.error === "string" ? data.error : "The advisor could not respond. Try again.");
+    }
     history = [...messages, { role: "model", text: data.reply }];
     routineProducts = selection;
     if (generate) chatWindow.replaceChildren();
